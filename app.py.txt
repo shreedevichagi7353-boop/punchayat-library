@@ -1,0 +1,99 @@
+import streamlit as st
+from datetime import datetime, timedelta
+
+st.set_page_config(page_title="Library Management System", layout="wide")
+st.title("Library Management System")
+st.markdown("**Rules: Max 2 Books | Return in 14 Days | Fine Rs 5 / Day Late**")
+
+MAX_BOOKS = 2
+ISSUE_DAYS = 14
+FINE_PER_DAY = 5
+
+if "books" not in st.session_state:
+    st.session_state.books = []
+if "next_id" not in st.session_state:
+    st.session_state.next_id = 1
+
+st.subheader("Add New Book")
+col1, col2, col3 = st.columns(3)
+with col1:
+    title = st.text_input("Book Title")
+with col2:
+    author = st.text_input("Author Name")
+with col3:
+    st.write("")
+    st.write("")
+    if st.button("Add Book"):
+        if title.strip() == "" or author.strip() == "":
+            st.warning("Please Enter Title and Author!")
+        else:
+            st.session_state.books.append({
+                "id": st.session_state.next_id,
+                "title": title,
+                "author": author,
+                "status": "Available",
+                "issued_to": "",
+                "issue_date": "",
+                "due_date": "",
+                "fine": ""
+            })
+            st.session_state.next_id += 1
+            st.success("Book Added Successfully!")
+            st.rerun()
+
+search = st.text_input("Search Book by Title or Author")
+
+st.subheader("All Books")
+books_to_show = st.session_state.books
+if search.strip() != "":
+    books_to_show = [b for b in books_to_show if search.lower() in b["title"].lower() or search.lower() in b["author"].lower()]
+
+if len(books_to_show) == 0:
+    st.info("No Books Found. Please Add Books Above.")
+else:
+    for b in books_to_show:
+        c1, c2, c3, c4, c5 = st.columns([1, 2, 2, 2, 3])
+        c1.write(f"ID: {b['id']}")
+        c2.write(f"**{b['title']}**")
+        c3.write(f"Author: {b['author']}")
+        c4.write(f"Status: {b['status']}")
+        if b["status"] == "Available":
+            student = c5.text_input(f"Student Name for ID {b['id']}", key=f"stu_{b['id']}")
+            if c5.button(f"Issue Book", key=f"issue_{b['id']}"):
+                if student.strip() == "":
+                    st.warning("Please Enter Student Name!")
+                else:
+                    count = sum(1 for x in st.session_state.books if x["issued_to"].lower() == student.lower() and x["status"] == "Issued")
+                    if count >= MAX_BOOKS:
+                        st.error(f"{student} already has {MAX_BOOKS} books!")
+                    else:
+                        today = datetime.now()
+                        due = today + timedelta(days=ISSUE_DAYS)
+                        b["status"] = "Issued"
+                        b["issued_to"] = student
+                        b["issue_date"] = today.strftime("%d-%m-%Y")
+                        b["due_date"] = due.strftime("%d-%m-%Y")
+                        b["fine"] = "Rs 0"
+                        st.success(f"Issued to {student}! Return by {b['due_date']}")
+                        st.rerun()
+        else:
+            c5.write(f"Issued To: {b['issued_to']} | Due: {b['due_date']}")
+            if c5.button(f"Return Book", key=f"ret_{b['id']}"):
+                due_date = datetime.strptime(b["due_date"], "%d-%m-%Y")
+                late_days = (datetime.now() - due_date).days
+                fine = 0
+                if late_days > 0:
+                    fine = late_days * FINE_PER_DAY
+                    st.warning(f"Late by {late_days} days! Fine: Rs {fine}")
+                else:
+                    st.success("Returned On Time! No Fine.")
+                b["status"] = "Available"
+                b["issued_to"] = ""
+                b["issue_date"] = ""
+                b["due_date"] = ""
+                b["fine"] = f"Rs {fine}" if fine > 0 else ""
+                st.rerun()
+            if c5.button(f"Delete", key=f"del_{b['id']}"):
+                st.session_state.books.remove(b)
+                st.success("Book Deleted!")
+                st.rerun()
